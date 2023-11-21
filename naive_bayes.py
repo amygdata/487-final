@@ -2,11 +2,9 @@ from load_data import load_sem_eval_data
 import pandas as pd
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.naive_bayes import MultinomialNB
-from sklearn.pipeline import Pipeline
-from sklearn.model_selection import GridSearchCV
 from sklearn.metrics import f1_score
 
-def print_stance_statistics(data: pd.DataFrame):
+def print_stance_statistics(data: pd.DataFrame) -> None:
     """
     Prints the number of tweets in each stance
     """
@@ -16,15 +14,11 @@ def print_stance_statistics(data: pd.DataFrame):
 def main():
     target = 'Climate Change is a Real Concern'
 
-    # Load training data
-    train_data_path = 'semeval2016-task6-trainingdata.txt'
-    train_data = load_sem_eval_data(train_data_path, target) 
+    train_data, test_data = load_sem_eval_data(target)  
+
     #print(train_data)
     #print_stance_statistics(train_data)
 
-    # Load test data
-    test_data_path = 'SemEval2016-Task6-subtaskA-testdata-gold.txt'
-    test_data = load_sem_eval_data(test_data_path, target)
     #print(test_data)
     #print_stance_statistics(test_data)
 
@@ -35,7 +29,7 @@ def main():
     X_test = test_data['Tweet']
     y_test = test_data['Stance']
 
-    # Create n_grams
+    # Vectorize data
     vectorizer = CountVectorizer(ngram_range=(4, 12)) # 4-grams to 12-grams seems to work best
     X_train = vectorizer.fit_transform(X_train)
     X_test = vectorizer.transform(X_test)
@@ -48,8 +42,9 @@ def main():
     # Make predictions on test data
     y_pred = classifier.predict(X_test)
 
-    # Calculate macro-average F1 score
-    mask = (y_test != 'NONE')
+    # Calculate macro-average F1 score as per SemEval-2016 Task 6 Task A specifications
+    # Should be a macro-average of the F1 scores of the Positive and Negative classes only
+    mask = (y_test != 'NONE') # Remove tweets that are not positive or negative
     y_test_filtered = y_test[mask]
     y_pred_filtered = y_pred[mask]
 
