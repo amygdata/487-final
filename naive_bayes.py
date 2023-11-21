@@ -2,7 +2,7 @@ from load_data import load_sem_eval_data
 import pandas as pd
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.naive_bayes import MultinomialNB
-from sklearn.metrics import f1_score
+from metrics import calculate_score
 
 def print_stance_statistics(data: pd.DataFrame) -> None:
     """
@@ -42,14 +42,7 @@ def main():
     # Make predictions on test data
     y_pred = classifier.predict(X_test)
 
-    # Calculate macro-average F1 score as per SemEval-2016 Task 6 Task A specifications
-    # Should be a macro-average of the F1 scores of the Positive and Negative classes only
-    mask = (y_test != 'NONE') # Remove tweets that are not positive or negative
-    y_test_filtered = y_test[mask]
-    y_pred_filtered = y_pred[mask]
-
-    f1 = f1_score(y_test_filtered, y_pred_filtered, average='macro')
-    print(f1)
+    print(calculate_score(y_test, y_pred))
 
 
 if __name__ == '__main__':
