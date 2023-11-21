@@ -30,4 +30,7 @@ def load_sem_eval_data(txt_path: str, target: str):
     # Remove '#SemSt' from the 'Tweet' column
     data['Tweet'] = data['Tweet'].str.replace('#SemST', '')
 
+    # Make tweets lowercase
+    data['Tweet'] = data['Tweet'].str.lower()
+
     return data
