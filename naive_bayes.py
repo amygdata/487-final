@@ -1,15 +1,9 @@
-from load_data import load_sem_eval_data
+from load_data import load_sem_eval_data, print_stance_statistics
 import pandas as pd
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.naive_bayes import MultinomialNB
 from metrics import calculate_score
 
-def print_stance_statistics(data: pd.DataFrame) -> None:
-    """
-    Prints the number of tweets in each stance
-    """
-    stance_counts = data['Stance'].value_counts()
-    print(stance_counts)
 
 def main():
     target = 'Climate Change is a Real Concern'

@@ -35,6 +35,13 @@ def preprocess_data(data: pd.DataFrame, target: str) -> pd.DataFrame:
 
     return data
 
+def print_stance_statistics(data: pd.DataFrame) -> None:
+    """
+    Prints the number of tweets in each stance
+    """
+    stance_counts = data['Stance'].value_counts()
+    print(stance_counts)
+
 def load_sem_eval_data(target: str) -> (pd.DataFrame, pd.DataFrame):
     """
     Loads the SemEval 2016 dataset and extracts rows that contain the target
