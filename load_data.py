@@ -66,3 +66,15 @@ def load_sem_eval_data(target: str) -> (pd.DataFrame, pd.DataFrame):
     test_data = preprocess_data(test_data, target)
 
     return train_data, test_data
+
+def split_data(data: pd.DataFrame) -> (pd.DataFrame, pd.DataFrame):
+    """
+    Splits the SemEval-2016 data into training and test data
+
+    Args:
+        data: The dataframe with SemEval-2016 data
+
+    Returns:
+        Two pandas dataframes containing the training and test datasets
+    """
+    return (data['Tweet'], data['Stance'])
