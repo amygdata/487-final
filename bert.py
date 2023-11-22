@@ -4,6 +4,7 @@ from transformers import BertTokenizer, BertForSequenceClassification
 from torch.utils.data import Dataset, DataLoader, TensorDataset
 import torch.optim as optimizer
 import torch
+import pandas as pd
 
 def get_optimizer(net, lr, weight_decay):
     """
@@ -41,13 +42,13 @@ def get_device():
     """
     return torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-def create_loader(X, y, tokenizer, batch_size):
+def create_loader(X: pd.DataFrame, y: pd.DataFrame, tokenizer, batch_size: int) -> DataLoader:
     """
     Creates the data loader for SemEval data
 
     Args:
-        X: The input data
-        y: The labels
+        X: The input data, a list of tweets
+        y: The labels, a list of stances
         batch_size: The batch size
     """
     X_ids = tokenizer.batch_encode_plus(X,
