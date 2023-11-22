@@ -41,6 +41,25 @@ def get_device():
     """
     return torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+def create_loader(X, y, tokenizer, batch_size):
+    """
+    Creates the data loader for SemEval data
+
+    Args:
+        X: The input data
+        y: The labels
+        batch_size: The batch size
+    """
+    X_ids = tokenizer.batch_encode_plus(X,
+                                        padding=True,
+                                        return_tensors='pt')
+
+    y_tensors = get_label_tensor(y)
+
+    data = TensorDataset(X_ids['input_ids'], X_ids['attention_mask'], y_tensors)
+
+    return DataLoader(data, batch_size=batch_size)
+
 def main():
     target = 'Climate Change is a Real Concern'
 
@@ -54,26 +73,9 @@ def main():
     model_name = 'bert-base-uncased'
     tokenizer = BertTokenizer.from_pretrained(model_name, do_lower_case=True)
 
-    print(f'Total Number of Rows: {X_train.shape}')
-
-    # Tokenize data
-    X_train_ids = tokenizer.batch_encode_plus(X_train, 
-                                          padding=True,       
-                                          return_tensors='pt')   
-
-    X_test = tokenizer.batch_encode_plus(X_test, 
-                                          padding=True,       
-                                          return_tensors='pt')   
-
-    # Convert labels to tensors
-    y_train = get_label_tensor(y_train)
-    y_test = get_label_tensor(y_test)
-
-    train_data = TensorDataset(X_train_ids['input_ids'], X_train_ids['attention_mask'], y_train)
-    train_loader = DataLoader(train_data, batch_size=16)
-
-    test_data = TensorDataset(X_test['input_ids'], X_test['attention_mask'], y_test)
-    test_loader = DataLoader(test_data, batch_size=16)
+    # Create data loaders
+    train_loader = create_loader(X_train, y_train, tokenizer, batch_size=16)
+    test_loader = create_loader(X_test, y_test, tokenizer, batch_size=16)
 
     # Create BERT model
     model = BertForSequenceClassification.from_pretrained(model_name, num_labels=3)
