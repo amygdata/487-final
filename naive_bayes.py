@@ -20,7 +20,7 @@ def main():
     X_test, y_test = split_data(test_data)
 
     # Vectorize data
-    vectorizer = CountVectorizer(ngram_range=(4, 12)) # 4-grams to 12-grams seems to work best
+    vectorizer = CountVectorizer(ngram_range=(4, 12), ) # 4-grams to 12-grams seems to work best
     X_train = vectorizer.fit_transform(X_train)
     X_test = vectorizer.transform(X_test)
 

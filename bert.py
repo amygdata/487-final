@@ -5,11 +5,6 @@ from torch.utils.data import Dataset, DataLoader, TensorDataset
 import torch.optim as optimizer
 import torch
 
-class TweetDataset(Dataset):
-    def __init__(self, data, tokenizer, max_len):
-        self.data = data
-
-
 def get_optimizer(net, lr, weight_decay):
     """
     FROM HOMEWORK 3
@@ -40,6 +35,12 @@ def get_label_tensor(labels):
 
     return torch.tensor(label_nums.values)
 
+def get_device():
+    """
+    Return the device you will use for training/testing.
+    """
+    return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 def main():
     target = 'Climate Change is a Real Concern'
 
@@ -48,12 +49,6 @@ def main():
     # Split data into X and y
     X_train, y_train = split_data(train_data)
     X_test, y_test = split_data(test_data)
-
-    # Move tensors to GPU if CUDA is available
-    if torch.cuda.is_available():
-        device = torch.device("cuda")
-    else:
-        device = torch.device("cpu")
 
     # Tokenize to BERT format
     model_name = 'bert-base-uncased'
@@ -88,7 +83,8 @@ def main():
     epochs = 10
     num_itr = 0
 
-    model.to('cuda')
+    device = get_device()
+    model.to(device)
 
     for epoch in range(epochs):
         model.train()
