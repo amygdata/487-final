@@ -85,7 +85,7 @@ def main():
 
     # Fine Tune BERT model
     optimizer = get_optimizer(model, lr=5e-5, weight_decay=0)
-    epochs = 25
+    epochs = 10
     num_itr = 0
 
     model.to('cuda')
@@ -110,6 +110,33 @@ def main():
             num_itr,
             loss.item()
             ))
+
+    # Evaluate the model
+    model.eval()
+    correct_predictions = 0
+    total_predictions = 0
+
+    for batch in test_loader:
+        input_ids = batch[0].to(device)
+        attention_mask = batch[1].to(device)
+        labels = batch[2].to(device)
+
+        with torch.no_grad():
+            outputs = model(input_ids=input_ids, attention_mask=attention_mask)
+        
+        # Get the predicted labels
+        _, preds = torch.max(outputs.logits, dim=1)
+        
+        # Count the number of correct predictions, ignore the "NONE" class
+        mask = (labels != 1)
+        correct_predictions += torch.sum(preds[mask] == labels[mask])
+        total_predictions += torch.sum(mask)
+
+    # Calculate the accuracy
+    print(correct_predictions, total_predictions)
+    accuracy = correct_predictions.double() / total_predictions.double()
+
+    print('Test Accuracy: {:.4f}'.format(accuracy))
 
 
 
