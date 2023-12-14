@@ -42,6 +42,13 @@ def get_device():
     """
     return torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+def define_loss_function(weights):
+    """
+    Return loss fuction. Use class weights to fix lopsided training data
+    """
+    class_weights = torch.tensor(weights, dtype=torch.float32).to(device)
+    return nn.CrossEntropyLoss(weight = class_weights)
+
 def create_loader(X: pd.DataFrame, y: pd.DataFrame, tokenizer, batch_size: int) -> DataLoader:
     """
     Creates the data loader for SemEval data
@@ -61,21 +68,22 @@ def create_loader(X: pd.DataFrame, y: pd.DataFrame, tokenizer, batch_size: int) 
 
     return DataLoader(data, batch_size=batch_size)
 
-def train_model(model, train_loader, optimizer, device, num_epochs):
+def train_model(model, train_loader, optimizer, device, loss_function, num_epochs):
     num_itr = 0
 
     model.to(device)
+    model.train()
 
     for epoch in range(num_epochs):
         model.train()
-        for batch in train_loader:            
+        for batch in train_loader:
             num_itr += 1
             input_ids = batch[0].to(device)
             attention_mask = batch[1].to(device)
             labels = batch[2].to(device)
 
             outputs = model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
-            loss = outputs[0]
+            loss = loss_function(outputs.logits, labels)
 
             optimizer.zero_grad()
             loss.backward()
@@ -91,6 +99,8 @@ def train_model(model, train_loader, optimizer, device, num_epochs):
 
 def evaluate_model(model, test_loader, device):
     model.eval()
+    all_preds = []
+    all_labels = []
     correct_predictions = 0
     total_predictions = 0
 
@@ -101,14 +111,40 @@ def evaluate_model(model, test_loader, device):
             labels = batch[2].to(device)
 
             outputs = model(input_ids=input_ids, attention_mask=attention_mask)
-            
+
             # Get the predicted labels
             _, preds = torch.max(outputs.logits, dim=1)
-            
-            # Count the number of correct predictions, ignore the "NONE" class
-            mask = (labels != 1)
-            correct_predictions += torch.sum(preds[mask] == labels[mask])
-            total_predictions += torch.sum(mask)
+
+            # i think don't do this -> Count the number of correct predictions, ignore the "NONE" class
+            #mask = (labels != 1)
+            correct_predictions += torch.sum(preds == labels)
+            total_predictions += torch.sum(preds)
+            preds = preds
+            labels = labels
+
+            all_preds.extend(preds.cpu().numpy())
+            all_labels.extend(labels.cpu().numpy())
+
+    # Calculate precision, recall, and F1 score for each class
+    precision, recall, f1, _ = precision_recall_fscore_support(all_labels, all_preds, average=None)
+
+    # Calculate average F1 score
+    avg_f1 = sum(f1) / len(f1)
+
+    # Print or return the results
+    print('Precision (favor): {:.4f}'.format(precision[0]))
+    print('Recall (favor): {:.4f}'.format(recall[0]))
+    print('F1 Score (favor): {:.4f}'.format(f1[0]))
+
+    print('Precision (neutral): {:.4f}'.format(precision[1]))
+    print('Recall (neutral): {:.4f}'.format(recall[1]))
+    print('F1 Score (neutral): {:.4f}'.format(f1[1]))
+
+    print('Precision (against): {:.4f}'.format(precision[2]))
+    print('Recall (against): {:.4f}'.format(recall[2]))
+    print('F1 Score (against): {:.4f}'.format(f1[2]))
+
+    print('Average F1 Score: {:.4f}'.format(avg_f1))
 
     # Calculate the accuracy
     print(correct_predictions, total_predictions)
@@ -119,7 +155,7 @@ def evaluate_model(model, test_loader, device):
 def main():
     target = 'Climate Change is a Real Concern'
 
-    train_data, test_data = load_sem_eval_data(target)  
+    train_data, test_data = load_sem_eval_data(target)
 
     # Split data into X and y
     X_train, y_train = split_data(train_data)
@@ -140,9 +176,11 @@ def main():
     optimizer = get_optimizer(model, lr=5e-5, weight_decay=0)
     device = get_device()
 
-    model = train_model(model, train_loader, optimizer, device, num_epochs=15)
+    weights = [5000, 1, 1]
+    loss_function = define_loss_function(weights)
 
-    # Evaluate BERT model
+    model = train_model(model, train_loader, optimizer, device, loss_function, num_epochs=15)
+
     evaluate_model(model, test_loader, device)
 
 
