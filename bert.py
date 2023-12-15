@@ -237,7 +237,6 @@ def evaluate_reddit(model, loader, device):
             all_preds.extend(preds.cpu().numpy())
             all_labels.extend(labels.cpu().numpy())
 
-    print(all_preds)
     # Calculate precision, recall, and F1 score for each class
     precision, recall, f1, _ = precision_recall_fscore_support(all_labels, all_preds, average=None)
 
