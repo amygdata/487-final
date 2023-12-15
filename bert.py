@@ -278,8 +278,9 @@ def main():
 
     tokenizer = BertTokenizer.from_pretrained(model_name, do_lower_case=True, padding="max_length")
 
-    max_length = 512
+    max_length = 448
     # Create data loaders
+    print("Creating Loaders")
     train_loader = create_loader(X_train, y_train, tokenizer, batch_size=16, max_length=max_length)
     test_loader = create_loader(X_test, y_test, tokenizer, batch_size=16, max_length=max_length)
 
