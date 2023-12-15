@@ -18,4 +18,4 @@ You can run the script from the command line as follows:
 python bert.py
 ```
 
-This will start the training process which WILL take time since we are using training examples 512 words in length, once complete, the script will output the model's performance metrics for both Twitter and Reddit data.
+This will start the training process which WILL take time since we are using very long training examples, once complete, the script will output the model's performance metrics for both Twitter and Reddit data.
