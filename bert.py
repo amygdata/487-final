@@ -1,4 +1,4 @@
-from load_data import load_sem_eval_data, split_data, print_stance_statistics, split_reddit
+from load_data import load_sem_eval_data, split_data, print_stance_statistics, split_reddit, detect_encoding
 from metrics import calculate_score
 from transformers import BertTokenizer, BertForSequenceClassification, BertConfig
 from torch.utils.data import Dataset, DataLoader, TensorDataset
@@ -21,7 +21,7 @@ def get_optimizer(net, lr, weight_decay):
         - weight_decay: weight_decay in optimizer
     """
 
-    return optimizer.Adam(params=net.parameters(), lr=lr, weight_decay=weight_decay)
+    return optim.Adam(params=net.parameters(), lr=lr, weight_decay=weight_decay)
 
 def get_label_tensor(labels):
     """
@@ -46,7 +46,7 @@ def get_device():
     """
     return torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-def define_loss_function(weights):
+def define_loss_function(weights, device):
     """
     Return loss fuction. Use class weights to fix lopsided training data
     """
@@ -182,11 +182,11 @@ def calculate_score(y_test, y_pred) -> float:
     return f1
 
 def load_reddit_data(tokenizer):
-    reddit_body_path = '/content/drive/MyDrive/reddit_body_data.txt'
+    reddit_body_path = 'reddit_body_data.txt'
     body_test = pd.read_csv(reddit_body_path, sep='\t', encoding=detect_encoding(reddit_body_path))
 
     # Load test dataset
-    reddit_title_path = '/content/drive/MyDrive/reddit_title_data.txt'
+    reddit_title_path = 'reddit_title_data.txt'
     title_test = pd.read_csv(reddit_title_path, sep='\t', encoding=detect_encoding(reddit_title_path))
 
     # Preprocess training and test data
@@ -262,9 +262,7 @@ def evaluate_reddit(model, loader, device):
     print(correct_predictions, total_predictions)
     accuracy = correct_predictions.double() / total_predictions.double()
 
-    print('Test Accuracy: {:.4f}'.format(accuracy))
-
-
+    print('Test Accuracy: {:.4f}\n'.format(accuracy))
 
 def main():
     target = 'Climate Change is a Real Concern'
@@ -280,7 +278,7 @@ def main():
 
     tokenizer = BertTokenizer.from_pretrained(model_name, do_lower_case=True, padding="max_length")
 
-    max_length = 512
+    max_length = 47
     # Create data loaders
     train_loader = create_loader(X_train, y_train, tokenizer, batch_size=16, max_length=max_length)
     test_loader = create_loader(X_test, y_test, tokenizer, batch_size=16, max_length=max_length)
@@ -293,7 +291,9 @@ def main():
     device = get_device()
 
     weights = [5000, 1, 1]
-    loss_function = define_loss_function(weights)
+    loss_function = define_loss_function(weights, device)
+
+    print("Training Model")
 
     model = train_model(model, train_loader, optimizer, device, loss_function, num_epochs=15)
 
