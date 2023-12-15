@@ -1,10 +1,14 @@
-from load_data import load_sem_eval_data, split_data, print_stance_statistics
+from load_data import load_sem_eval_data, split_data, print_stance_statistics, split_reddit
 from metrics import calculate_score
-from transformers import BertTokenizer, BertForSequenceClassification
+from transformers import BertTokenizer, BertForSequenceClassification, BertConfig
 from torch.utils.data import Dataset, DataLoader, TensorDataset
-import torch.optim as optimizer
+from sklearn.metrics import precision_recall_fscore_support, f1_score
+import torch.optim as optim
 import torch
 import pandas as pd
+import chardet
+import numpy as np
+import torch.nn as nn
 
 def get_optimizer(net, lr, weight_decay):
     """
@@ -49,7 +53,7 @@ def define_loss_function(weights):
     class_weights = torch.tensor(weights, dtype=torch.float32).to(device)
     return nn.CrossEntropyLoss(weight = class_weights)
 
-def create_loader(X: pd.DataFrame, y: pd.DataFrame, tokenizer, batch_size: int) -> DataLoader:
+def create_loader(X: pd.DataFrame, y: pd.DataFrame, tokenizer, batch_size: int, max_length=512) -> DataLoader:
     """
     Creates the data loader for SemEval data
 
@@ -58,14 +62,19 @@ def create_loader(X: pd.DataFrame, y: pd.DataFrame, tokenizer, batch_size: int) 
         y: The labels, a list of stances
         batch_size: The batch size
     """
-    X_ids = tokenizer.batch_encode_plus(X,
-                                        padding=True,
-                                        return_tensors='pt')
-
-    y_tensors = get_label_tensor(y)
-
-    data = TensorDataset(X_ids['input_ids'], X_ids['attention_mask'], y_tensors)
-
+    X = X.tolist()
+    tokenized_inputs = tokenizer(
+        X,
+        padding="max_length",
+        max_length=max_length,
+        truncation=True,
+        return_tensors="pt"
+    )
+    data = TensorDataset(
+        tokenized_inputs["input_ids"],
+        tokenized_inputs["attention_mask"],
+        get_label_tensor(y)
+    )
     return DataLoader(data, batch_size=batch_size)
 
 def train_model(model, train_loader, optimizer, device, loss_function, num_epochs):
@@ -115,7 +124,7 @@ def evaluate_model(model, test_loader, device):
             # Get the predicted labels
             _, preds = torch.max(outputs.logits, dim=1)
 
-            # i think don't do this -> Count the number of correct predictions, ignore the "NONE" class
+            # Count the number of correct predictions, ignore the "NONE" class
             #mask = (labels != 1)
             correct_predictions += torch.sum(preds == labels)
             total_predictions += torch.sum(preds)
@@ -152,7 +161,27 @@ def evaluate_model(model, test_loader, device):
 
     print('Test Accuracy: {:.4f}'.format(accuracy))
 
-def load_reddit_data():
+def calculate_score(y_test, y_pred) -> float:
+    """
+    Calculates the evaluation metric for the SemEval 2016 Task 6, Subtask A
+    which is the macro-average of the f1-score for "FAVOR" and the
+    f1-score for "AGAINST", ignoring the "NONE" class.
+
+    Args:
+        y_test: The true labels
+        y_pred: The predicted labels
+
+    Returns:
+        The calculated F1 score
+    """
+    mask = (y_test != 'NONE') # Remove "NONE" class tweets
+    y_test_filtered = y_test[mask]
+    y_pred_filtered = y_pred[mask]
+
+    f1 = f1_score(y_test_filtered, y_pred_filtered, average='macro')
+    return f1
+
+def load_reddit_data(tokenizer):
     reddit_body_path = '/content/drive/MyDrive/reddit_body_data.txt'
     body_test = pd.read_csv(reddit_body_path, sep='\t', encoding=detect_encoding(reddit_body_path))
 
@@ -168,15 +197,21 @@ def load_reddit_data():
     title_data['Text'] = title_data['Text'].str.lower()
     body_data['Text'] = body_data['Text'].fillna('')
     title_data['Text'] = title_data['Text'].fillna('')
+    body_data['Text'] = body_data['Text'].apply(lambda x: ' '.join(tokenizer.tokenize(x)[:512]))
+    title_data['Text'] = title_data['Text'].apply(lambda x: ' '.join(tokenizer.tokenize(x)[:512]))
+
+    label_mapping = {0: 'AGAINST', 1: 'NONE', 2: 'FAVOR'}
+
+    # Replace values in the specified column
+    body_data['Stance'] = body_data['Stance'].replace(label_mapping)
+    title_data['Stance'] = title_data['Stance'].replace(label_mapping)
+
 
     return body_data, title_data
 
-def evaluate_reddit(tokenizer, model, device):
-    body_data, title_data = load_reddit_data()
-    x_body, y_body = split_reddit(body_data)
-    x_title, y_title = split_reddit(title_data)
-    body_loader = create_loader(x_body, y_body, tokenizer, batch_size=16)
-    title_loader = create_loader(x_title, y_title, tokenizer, batch_size=16)
+
+def evaluate_reddit(model, loader, device):
+
     model.eval()
     all_preds = []
     all_labels = []
@@ -184,12 +219,10 @@ def evaluate_reddit(tokenizer, model, device):
     total_predictions = 0
 
     with torch.no_grad():
-        for batch in body_loader:
+        for batch in loader:
             input_ids = batch[0].to(device)
             attention_mask = batch[1].to(device)
             labels = batch[2].to(device)
-            print(input_ids.shape)
-            print(attention_mask.shape)
 
             outputs = model(input_ids=input_ids, attention_mask=attention_mask)
 
@@ -200,12 +233,11 @@ def evaluate_reddit(tokenizer, model, device):
             #mask = (labels != 1)
             correct_predictions += torch.sum(preds == labels)
             total_predictions += torch.sum(preds)
-            preds = preds
-            labels = labels
 
             all_preds.extend(preds.cpu().numpy())
             all_labels.extend(labels.cpu().numpy())
 
+    print(all_preds)
     # Calculate precision, recall, and F1 score for each class
     precision, recall, f1, _ = precision_recall_fscore_support(all_labels, all_preds, average=None)
 
@@ -234,6 +266,7 @@ def evaluate_reddit(tokenizer, model, device):
     print('Test Accuracy: {:.4f}'.format(accuracy))
 
 
+
 def main():
     target = 'Climate Change is a Real Concern'
 
@@ -245,11 +278,13 @@ def main():
 
     # Tokenize to BERT format
     model_name = 'bert-base-uncased'
-    tokenizer = BertTokenizer.from_pretrained(model_name, do_lower_case=True)
 
+    tokenizer = BertTokenizer.from_pretrained(model_name, do_lower_case=True, padding="max_length")
+
+    max_length = 512
     # Create data loaders
-    train_loader = create_loader(X_train, y_train, tokenizer, batch_size=16)
-    test_loader = create_loader(X_test, y_test, tokenizer, batch_size=16)
+    train_loader = create_loader(X_train, y_train, tokenizer, batch_size=16, max_length=max_length)
+    test_loader = create_loader(X_test, y_test, tokenizer, batch_size=16, max_length=max_length)
 
     # Create BERT model
     model = BertForSequenceClassification.from_pretrained(model_name, num_labels=3)
@@ -263,9 +298,29 @@ def main():
 
     model = train_model(model, train_loader, optimizer, device, loss_function, num_epochs=15)
 
+    print('Twitter predictions (Control)')
     evaluate_model(model, test_loader, device)
 
-    evaluate_reddit(tokenizer, model, device)
+    body_data, title_data = load_reddit_data(tokenizer)
+    x_body, y_body = split_reddit(body_data)
+    x_title, y_title = split_reddit(title_data)
+    body_loader = create_loader(x_body, y_body, tokenizer, batch_size=16, max_length=max_length)
+    title_loader = create_loader(x_title, y_title, tokenizer, batch_size=16, max_length=max_length)
+
+    print('Reddit predictions (Body Only)')
+    evaluate_reddit(model, body_loader, device)
+
+    print('Reddit predictions (Title Only)')
+    evaluate_reddit(model, title_loader, device)
+
+    both_data_text = title_data['Text'] + ' ' + body_data['Text']
+
+    # Create a new DataFrame 'both_data'
+    both_data = pd.DataFrame({'Text': both_data_text, 'Stance': title_data['Stance']})
+    x_both, y_both = split_reddit(both_data)
+    both_loader = create_loader(x_both, y_both, tokenizer, batch_size=16, max_length=max_length)
+    print('Reddit predictions (Title and Body)')
+    evaluate_reddit(model, both_loader, device)
 
 
 if __name__ == '__main__':

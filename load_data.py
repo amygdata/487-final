@@ -1,5 +1,5 @@
 import pandas as pd
-import chardet 
+import chardet
 
 def detect_encoding(file_path: str) -> str:
     """
@@ -78,3 +78,15 @@ def split_data(data: pd.DataFrame) -> (pd.DataFrame, pd.DataFrame):
         Two pandas dataframes containing the training and test datasets
     """
     return (data['Tweet'], data['Stance'])
+
+def split_reddit(data: pd.DataFrame) -> (pd.DataFrame, pd.DataFrame):
+    """
+    Splits the Reddit data into training and test data
+
+    Args:
+        data: The dataframe with Reddit data
+
+    Returns:
+        Two pandas dataframes containing the training and test datasets
+    """
+    return (data['Text'], data['Stance'])
