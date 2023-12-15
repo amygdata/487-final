@@ -152,6 +152,88 @@ def evaluate_model(model, test_loader, device):
 
     print('Test Accuracy: {:.4f}'.format(accuracy))
 
+def load_reddit_data():
+    reddit_body_path = '/content/drive/MyDrive/reddit_body_data.txt'
+    body_test = pd.read_csv(reddit_body_path, sep='\t', encoding=detect_encoding(reddit_body_path))
+
+    # Load test dataset
+    reddit_title_path = '/content/drive/MyDrive/reddit_title_data.txt'
+    title_test = pd.read_csv(reddit_title_path, sep='\t', encoding=detect_encoding(reddit_title_path))
+
+    # Preprocess training and test data
+    body_data = body_test.copy()
+    title_data = title_test.copy()
+
+    body_data['Text'] = body_data['Text'].str.lower()
+    title_data['Text'] = title_data['Text'].str.lower()
+    body_data['Text'] = body_data['Text'].fillna('')
+    title_data['Text'] = title_data['Text'].fillna('')
+
+    return body_data, title_data
+
+def evaluate_reddit(tokenizer, model, device):
+    body_data, title_data = load_reddit_data()
+    x_body, y_body = split_reddit(body_data)
+    x_title, y_title = split_reddit(title_data)
+    body_loader = create_loader(x_body, y_body, tokenizer, batch_size=16)
+    title_loader = create_loader(x_title, y_title, tokenizer, batch_size=16)
+    model.eval()
+    all_preds = []
+    all_labels = []
+    correct_predictions = 0
+    total_predictions = 0
+
+    with torch.no_grad():
+        for batch in body_loader:
+            input_ids = batch[0].to(device)
+            attention_mask = batch[1].to(device)
+            labels = batch[2].to(device)
+            print(input_ids.shape)
+            print(attention_mask.shape)
+
+            outputs = model(input_ids=input_ids, attention_mask=attention_mask)
+
+            # Get the predicted labels
+            _, preds = torch.max(outputs.logits, dim=1)
+
+            # i think don't do this -> Count the number of correct predictions, ignore the "NONE" class
+            #mask = (labels != 1)
+            correct_predictions += torch.sum(preds == labels)
+            total_predictions += torch.sum(preds)
+            preds = preds
+            labels = labels
+
+            all_preds.extend(preds.cpu().numpy())
+            all_labels.extend(labels.cpu().numpy())
+
+    # Calculate precision, recall, and F1 score for each class
+    precision, recall, f1, _ = precision_recall_fscore_support(all_labels, all_preds, average=None)
+
+    # Calculate average F1 score
+    avg_f1 = sum(f1) / len(f1)
+
+    # Print or return the results
+    print('Precision (favor): {:.4f}'.format(precision[0]))
+    print('Recall (favor): {:.4f}'.format(recall[0]))
+    print('F1 Score (favor): {:.4f}'.format(f1[0]))
+
+    print('Precision (neutral): {:.4f}'.format(precision[1]))
+    print('Recall (neutral): {:.4f}'.format(recall[1]))
+    print('F1 Score (neutral): {:.4f}'.format(f1[1]))
+
+    print('Precision (against): {:.4f}'.format(precision[2]))
+    print('Recall (against): {:.4f}'.format(recall[2]))
+    print('F1 Score (against): {:.4f}'.format(f1[2]))
+
+    print('Average F1 Score: {:.4f}'.format(avg_f1))
+
+    # Calculate the accuracy
+    print(correct_predictions, total_predictions)
+    accuracy = correct_predictions.double() / total_predictions.double()
+
+    print('Test Accuracy: {:.4f}'.format(accuracy))
+
+
 def main():
     target = 'Climate Change is a Real Concern'
 
@@ -182,6 +264,8 @@ def main():
     model = train_model(model, train_loader, optimizer, device, loss_function, num_epochs=15)
 
     evaluate_model(model, test_loader, device)
+
+    evaluate_reddit(tokenizer, model, device)
 
 
 if __name__ == '__main__':
