@@ -135,7 +135,7 @@ def evaluate_model(model, test_loader, device):
             all_labels.extend(labels.cpu().numpy())
 
     # Calculate precision, recall, and F1 score for each class
-    precision, recall, f1, _ = precision_recall_fscore_support(all_labels, all_preds, average=None)
+    precision, recall, f1, _ = precision_recall_fscore_support(all_labels, all_preds, average=None, zero_division=0)
 
     # Calculate average F1 score
     avg_f1 = sum(f1) / len(f1)
@@ -159,7 +159,7 @@ def evaluate_model(model, test_loader, device):
     print(correct_predictions, total_predictions)
     accuracy = correct_predictions.double() / total_predictions.double()
 
-    print('Test Accuracy: {:.4f}'.format(accuracy))
+    print('Test Accuracy: {:.4f}\n'.format(accuracy))
 
 def calculate_score(y_test, y_pred) -> float:
     """
@@ -238,7 +238,7 @@ def evaluate_reddit(model, loader, device):
             all_labels.extend(labels.cpu().numpy())
 
     # Calculate precision, recall, and F1 score for each class
-    precision, recall, f1, _ = precision_recall_fscore_support(all_labels, all_preds, average=None)
+    precision, recall, f1, _ = precision_recall_fscore_support(all_labels, all_preds, average=None, zero_division=0)
 
     # Calculate average F1 score
     avg_f1 = sum(f1) / len(f1)
@@ -278,7 +278,7 @@ def main():
 
     tokenizer = BertTokenizer.from_pretrained(model_name, do_lower_case=True, padding="max_length")
 
-    max_length = 47
+    max_length = 128
     # Create data loaders
     train_loader = create_loader(X_train, y_train, tokenizer, batch_size=16, max_length=max_length)
     test_loader = create_loader(X_test, y_test, tokenizer, batch_size=16, max_length=max_length)
@@ -290,14 +290,14 @@ def main():
     optimizer = get_optimizer(model, lr=5e-5, weight_decay=0)
     device = get_device()
 
-    weights = [5000, 1, 1]
+    weights = [1, 1, 1]
     loss_function = define_loss_function(weights, device)
 
     print("Training Model")
 
     model = train_model(model, train_loader, optimizer, device, loss_function, num_epochs=15)
 
-    print('Twitter predictions (Control)')
+    print('\nTwitter predictions (Control)')
     evaluate_model(model, test_loader, device)
 
     body_data, title_data = load_reddit_data(tokenizer)
